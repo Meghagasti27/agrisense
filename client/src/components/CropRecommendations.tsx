@@ -4,49 +4,36 @@ interface CropRecommendationsProps {
   data: RecommendResponse;
 }
 
-const CropRecommendations = ({
-  data,
-}: CropRecommendationsProps) => {
+const CropRecommendations = ({ data }: CropRecommendationsProps) => {
   return (
-    <div className="p-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-4 p-4 md:grid-cols-2 lg:grid-cols-3">
       {data.recommendations.map((item) => (
         <div
           key={item.rank}
-          className="border rounded-xl p-4 shadow hover:shadow-lg transition-all"
+          className="rounded-xl border bg-white p-4 shadow transition-all hover:shadow-lg"
         >
           <h2 className="text-xl font-semibold">
             #{item.rank} {item.crop}
           </h2>
 
-          <div className="mt-2 text-sm text-gray-700 space-y-1">
+          <div className="mt-3 space-y-1 text-sm text-gray-700">
             <p>
-              <strong>Predicted Yield:</strong>{" "}
-              {item.estimated_yield}
+              <strong>Predicted Yield:</strong> {item.estimated_yield}
             </p>
-
             <p>
-              <strong>Estimated Profit:</strong>{" "}
-              ₹{item.estimated_profit}
+              <strong>Estimated Profit:</strong> Rs. {item.estimated_profit}
             </p>
-
             <p>
-              <strong>Confidence:</strong>{" "}
-              {item.confidence}%
+              <strong>Confidence:</strong> {item.confidence}%
             </p>
-
             <p>
-              <strong>Min Yield:</strong>{" "}
-              {item.min_yield}
+              <strong>Yield Range:</strong> {item.min_yield} - {item.max_yield}
             </p>
-
             <p>
-              <strong>Max Yield:</strong>{" "}
-              {item.max_yield}
+              <strong>Yield Index:</strong> {item.yield_index}x crop median
             </p>
-
             <p>
-              <strong>Rank:</strong>{" "}
-              {item.rank}
+              <strong>Suitability Score:</strong> {item.recommendation_score}
             </p>
           </div>
         </div>

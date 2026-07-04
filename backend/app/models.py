@@ -44,10 +44,11 @@ class CropRecommendation(BaseModel):
     estimated_yield: float
     estimated_profit: float
     rank: int
-
     confidence: float
     min_yield: float
     max_yield: float
+    yield_index: float
+    recommendation_score: float
 
 
 class RecommendResponse(BaseModel):

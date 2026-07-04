@@ -13,15 +13,40 @@ const API_BASE_URL =
   import.meta.env.VITE_BACKEND_URL ||
   "http://localhost:8000";
 
-// const initialForm = {
-//   avg_temp_30: "",
-//   soil_type: "",
-//   pH: "",
-//   rainfall_30: "",
-//   lat: "",
-//   lon: "",
-//   irrigation: false,
-// };
+const seasons = ["Autumn", "Kharif", "Rabi", "Summer", "Whole Year", "Winter"];
+
+const states = [
+  "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chhattisgarh",
+  "Delhi",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jammu and Kashmir",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Puducherry",
+  "Punjab",
+  "Sikkim",
+  "Tamil Nadu",
+  "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
+];
 
 const initialForm = {
   crop_year: "2020",
@@ -35,7 +60,6 @@ const initialForm = {
 
 function Dashboard() {
   const { getToken } = useAuth();
-
   const [formData, setFormData] = useState(initialForm);
   const [result, setResult] = useState<RecommendResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -43,339 +67,242 @@ function Dashboard() {
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
+    setFormData((previous) => ({ ...previous, [name]: value }));
+  };
 
-    setFormData((previous) => ({
-      ...previous,
-      [name]: value,
-    }));
+  const updateSelect = (name: keyof typeof initialForm, value: string) => {
+    setFormData((previous) => ({ ...previous, [name]: value }));
   };
 
   const validateForm = () => {
-    const required = [
-      formData.crop_year,
-      formData.season,
-      formData.state,
-      formData.area,
-      formData.annual_rainfall,
-      formData.fertilizer,
-      formData.pesticide,
-    ];
-
+    const required = Object.values(formData);
     if (required.some((value) => value === "")) {
       return "Please complete all fields.";
+    }
+
+    const numericFields = [
+      ["Area", Number(formData.area)],
+      ["Annual rainfall", Number(formData.annual_rainfall)],
+      ["Fertilizer", Number(formData.fertilizer)],
+      ["Pesticide", Number(formData.pesticide)],
+    ] as const;
+
+    const invalidField = numericFields.find(([, value]) => !Number.isFinite(value) || value < 0);
+    if (invalidField) {
+      return `${invalidField[0]} must be a valid non-negative number.`;
     }
 
     return null;
   };
 
   const predict = async () => {
-  console.log("PREDICT CLICKED");
-
-  const validationError = validateForm();
-
-  if (validationError) {
-    console.log("VALIDATION ERROR:", validationError);
-    setError(validationError);
-    return;
-  }
-
-  setLoading(true);
-  setError(null);
-  setResult(null);
-
-  // const controller = new AbortController();
-  // const timeout = window.setTimeout(
-  //   () => controller.abort(),
-  //   15000
-  // );
-
-  try {
-    const token = await getToken();
-
-    const payload = {
-      crop_year: Number(formData.crop_year),
-      season: formData.season,
-      state: formData.state,
-      area: Number(formData.area),
-      annual_rainfall: Number(formData.annual_rainfall),
-      fertilizer: Number(formData.fertilizer),
-      pesticide: Number(formData.pesticide),
-    };
-
-    console.log("API URL:", API_BASE_URL);
-    console.log("REQUEST BODY:", payload);
-
-   const response = await fetch(
-  `${API_BASE_URL}/api/recommend`,
-  {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token
-        ? { Authorization: `Bearer ${token}` }
-        : {}),
-    },
-    body: JSON.stringify(payload),
-  }
-);
-
-    console.log("RESPONSE STATUS:", response.status);
-
-    const data = await response.json();
-
-    console.log("RESPONSE DATA:", data);
-
-    if (!response.ok) {
-      throw new Error(
-        data.detail ||
-        "The prediction service returned an error."
-      );
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return;
     }
 
-    setResult(data as RecommendResponse);
+    setLoading(true);
+    setError(null);
+    setResult(null);
 
-  } catch (requestError) {
-    console.error("REQUEST ERROR:", requestError);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 20000);
 
-    setError(
-      requestError instanceof DOMException &&
-      requestError.name === "AbortError"
-        ? "Prediction timed out. Please try again."
-        : requestError instanceof Error
-        ? requestError.message
-        : "Failed to get a recommendation."
-    );
-  } finally {
-    // window.clearTimeout(timeout);
-    setLoading(false);
-  }
-};
+    try {
+      const token = await getToken();
+      const payload = {
+        crop_year: Number(formData.crop_year),
+        season: formData.season,
+        state: formData.state,
+        area: Number(formData.area),
+        annual_rainfall: Number(formData.annual_rainfall),
+        fertilizer: Number(formData.fertilizer),
+        pesticide: Number(formData.pesticide),
+      };
+
+      const response = await fetch(`${API_BASE_URL}/api/recommend`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || "The prediction service returned an error.");
+      }
+
+      setResult(data as RecommendResponse);
+    } catch (requestError) {
+      setError(
+        requestError instanceof DOMException && requestError.name === "AbortError"
+          ? "Prediction timed out. Please try again."
+          : requestError instanceof Error
+            ? requestError.message
+            : "Failed to get a recommendation.",
+      );
+    } finally {
+      window.clearTimeout(timeout);
+      setLoading(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex gap-4 mt-10 pb-10">
-      <Card className="hidden md:flex flex-col w-[30vh] rounded-r-3xl rounded-l-none">
-        <CardHeader>
-          <CardTitle>History</CardTitle>
-        </CardHeader>
-      </Card>
-
-      <div className="w-full rounded-3xl p-3">
+    <div className="min-h-screen bg-gray-50 px-3 py-10">
+      <div className="mx-auto max-w-6xl">
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">
-              Crop Recommendation System
-            </CardTitle>
+            <CardTitle className="text-2xl">Crop Recommendation System</CardTitle>
           </CardHeader>
 
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="crop_year">
-                  Crop Year
-                </Label>
-                {/* <Input
-                  id="crop_year"
-                  name="crop_year"
-                  type="number"
-                  value={formData.crop_year}
-                  onChange={handleInputChange}
-                /> */}
-                <Select
-  value={formData.crop_year}
-  onValueChange={(value) =>
-    setFormData((prev) => ({
-      ...prev,
-      crop_year: value,
-    }))
-  }
->
-  <SelectTrigger>
-    <SelectValue placeholder="Select Year" />
-  </SelectTrigger>
-
-  <SelectContent>
-    {Array.from(
-      { length: 24 },
-      (_, i) => 1997 + i
-    ).map((year) => (
-      <SelectItem
-        key={year}
-        value={year.toString()}
-      >
-        {year}
-      </SelectItem>
-    ))}
-  </SelectContent>
-</Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="season">
-                  Season
-                </Label>
-
-                <Select
-                  value={formData.season}
-                  onValueChange={(value: string) =>
-                    setFormData((previous) => ({
-                      ...previous,
-                      season: value,
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Season" />
+                <Label htmlFor="crop_year">Crop Year</Label>
+                <Select value={formData.crop_year} onValueChange={(value) => updateSelect("crop_year", value)}>
+                  <SelectTrigger id="crop_year">
+                    <SelectValue placeholder="Select Year" />
                   </SelectTrigger>
-
                   <SelectContent>
-                    <SelectItem value="Kharif">
-                      Kharif
-                    </SelectItem>
-
-                    <SelectItem value="Rabi">
-                      Rabi
-                    </SelectItem>
-
-                    <SelectItem value="Whole Year">
-                      Whole Year
-                    </SelectItem>
-
-                    <SelectItem value="Summer">
-                      Summer
-                    </SelectItem>
+                    {Array.from({ length: 24 }, (_, index) => 1997 + index).map((year) => (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="state">
-                  State
-                </Label>
-
-                {/* <Input
-                  id="state"
-                  name="state"
-                  placeholder="Assam"
-                  value={formData.state}
-                  onChange={handleInputChange}
-                /> */}
-                <Select
-  value={formData.state}
-  onValueChange={(value) =>
-    setFormData((prev) => ({
-      ...prev,
-      state: value,
-    }))
-  }
->
-  <SelectTrigger>
-    <SelectValue placeholder="Select State" />
-  </SelectTrigger>
-
-  <SelectContent>
-    <SelectItem value="Assam">Assam</SelectItem>
-    <SelectItem value="Karnataka">Karnataka</SelectItem>
-    <SelectItem value="Maharashtra">Maharashtra</SelectItem>
-    <SelectItem value="Tamil Nadu">Tamil Nadu</SelectItem>
-    <SelectItem value="Kerala">Kerala</SelectItem>
-    <SelectItem value="Andhra Pradesh">Andhra Pradesh</SelectItem>
-    <SelectItem value="Telangana">Telangana</SelectItem>
-  </SelectContent>
-</Select>
+                <Label htmlFor="season">Season</Label>
+                <Select value={formData.season} onValueChange={(value) => updateSelect("season", value)}>
+                  <SelectTrigger id="season">
+                    <SelectValue placeholder="Select Season" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {seasons.map((season) => (
+                      <SelectItem key={season} value={season}>
+                        {season}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="area">
-                  Area
-                </Label>
+                <Label htmlFor="state">State</Label>
+                <Select value={formData.state} onValueChange={(value) => updateSelect("state", value)}>
+                  <SelectTrigger id="state">
+                    <SelectValue placeholder="Select State" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {states.map((state) => (
+                      <SelectItem key={state} value={state}>
+                        {state}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="area">Area (Hectares)</Label>
                 <Input
-                  id="area"
-                  name="area"
-                  type="number"
-                  value={formData.area}
-                  onChange={handleInputChange}
+                id="area"
+                name="area"
+                type="number"
+                min="0"
+                placeholder="e.g. 500"
+                value={formData.area}
+                onChange={handleInputChange}
                 />
+                <p className="text-xs text-gray-500">Total cultivated land area in hectares.</p>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="annual_rainfall">
-                  Annual Rainfall
-                </Label>
+  Annual Rainfall (mm/year)
+</Label>
 
-                <Input
-                  id="annual_rainfall"
-                  name="annual_rainfall"
-                  type="number"
-                  value={formData.annual_rainfall}
-                  onChange={handleInputChange}
-                />
+<Input
+  id="annual_rainfall"
+  name="annual_rainfall"
+  type="number"
+  min="0"
+  placeholder="e.g. 1000"
+  value={formData.annual_rainfall}
+  onChange={handleInputChange}
+/>
+
+<p className="text-xs text-gray-500">
+  Average annual rainfall in millimeters.
+</p>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="fertilizer">
-                  Fertilizer
-                </Label>
+  Fertilizer Usage (kg)
+</Label>
 
-                <Input
-                  id="fertilizer"
-                  name="fertilizer"
-                  type="number"
-                  value={formData.fertilizer}
-                  onChange={handleInputChange}
-                />
+<Input
+  id="fertilizer"
+  name="fertilizer"
+  type="number"
+  min="0"
+  placeholder="e.g. 1995"
+  value={formData.fertilizer}
+  onChange={handleInputChange}
+/>
+
+<p className="text-xs text-gray-500">
+  Total fertilizer applied in kilograms.
+</p>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="pesticide">
-                  Pesticide
-                </Label>
+  Pesticide Usage (kg)
+</Label>
 
-                <Input
-                  id="pesticide"
-                  name="pesticide"
-                  type="number"
-                  value={formData.pesticide}
-                  onChange={handleInputChange}
-                />
+<Input
+  id="pesticide"
+  name="pesticide"
+  type="number"
+  min="0"
+  placeholder="e.g. 2000"
+  value={formData.pesticide}
+  onChange={handleInputChange}
+/>
+
+<p className="text-xs text-gray-500">
+  Total pesticide applied in kilograms.
+</p>
               </div>
-
             </div>
 
             {error && (
-              <div
-                role="alert"
-                className="mt-5 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
-              >
+              <div role="alert" className="mt-5 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                 {error}
               </div>
             )}
 
-            <div className="flex mt-6">
-              <Button
-                onClick={predict}
-                disabled={loading}
-                className="flex-1 mx-auto max-w-[60vw]"
-              >
-                {loading
-                  ? "Getting Recommendation..."
-                  : "Get Prediction"}
+            <div className="mt-6 flex">
+              <Button onClick={predict} disabled={loading} className="mx-auto max-w-[60vw] flex-1">
+                {loading ? "Getting Recommendation..." : "Get Prediction"}
               </Button>
             </div>
 
             {result && (
               <Card className="mt-6 bg-blue-50">
                 <CardHeader>
-                  <CardTitle className="text-lg">
-                    Recommendation Result
-                  </CardTitle>
+                  <CardTitle className="text-lg">Recommendation Result</CardTitle>
                 </CardHeader>
-
                 <CardContent>
-                  <CropRecommendations
-                    data={result}
-                  />
+                  <CropRecommendations data={result} />
                 </CardContent>
               </Card>
             )}

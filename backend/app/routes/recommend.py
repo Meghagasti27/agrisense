@@ -128,7 +128,10 @@ async def recommend(
 
         results = []
 
-        for crop in predictor.get_all_crops():
+        for crop in predictor.get_candidate_crops(
+            season=input.season,
+            state=input.state,
+        ):
 
             metrics = predictor.predict_crop_yield(
                 crop=crop,
@@ -141,23 +144,15 @@ async def recommend(
                 pesticide=input.pesticide,
             )
 
-            predicted_yield = metrics["yield"]
-            confidence = metrics["confidence"]
-            min_yield = metrics["min_yield"]
-            max_yield = metrics["max_yield"]
-
             results.append(
                 {
                     "crop": crop,
-                    "yield": predicted_yield,
-                    "confidence": confidence,
-                    "min_yield": min_yield,
-                    "max_yield": max_yield,
+                    **metrics,
                 }
             )
 
         results.sort(
-            key=lambda x: x["yield"],
+            key=lambda x: x["recommendation_score"],
             reverse=True,
         )
 
@@ -169,14 +164,16 @@ async def recommend(
 
             recommendations.append(
                 CropRecommendation(
-    crop=item["crop"],
-    estimated_yield=item["yield"],
-    estimated_profit=round(item["yield"] * 10, 2),
-    rank=rank,
-    confidence=item["confidence"],
-    min_yield=item["min_yield"],
-    max_yield=item["max_yield"],
-)
+                    crop=item["crop"],
+                    estimated_yield=item["yield"],
+                    estimated_profit=item["estimated_profit"],
+                    rank=rank,
+                    confidence=item["confidence"],
+                    min_yield=item["min_yield"],
+                    max_yield=item["max_yield"],
+                    yield_index=item["yield_index"],
+                    recommendation_score=item["recommendation_score"],
+                )
             )
 
         return RecommendResponse(
@@ -185,6 +182,17 @@ async def recommend(
 
     except Exception as e:
 
+        raise HTTPException(
+            status_code=500,
+            detail=str(e),
+        )
+
+
+@router.get("/model-info")
+def get_model_info():
+    try:
+        return get_predictor().get_model_info()
+    except Exception as e:
         raise HTTPException(
             status_code=500,
             detail=str(e),
